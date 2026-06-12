@@ -1,3 +1,4 @@
+import StatusBadge from './StatusBadge'
 import { useMemo, useState } from 'react'
 import {
   flexRender,
@@ -59,11 +60,26 @@ function DataTable({
         accessorKey: key,
         header: key,
         cell: (info) => {
-          return (
-            <span className="block max-w-[280px] truncate" title={formatCellValue(info.getValue())}>
-              {formatCellValue(info.getValue())}
-            </span>
-          )
+            const value = info.getValue()
+            const columnName = String(key || '').toLowerCase()
+
+            const isStatusColumn =
+                columnName.includes('status') ||
+                columnName.includes('rekomendasi') ||
+                columnName.includes('tier')
+
+            if (isStatusColumn) {
+                return <StatusBadge value={formatCellValue(value)} />
+            }
+
+            return (
+                <span
+                    className="block max-w-[280px] truncate"
+                    title={formatCellValue(value)}
+                >
+                    {formatCellValue(value)}
+                </span>
+            )
         },
       }
     })

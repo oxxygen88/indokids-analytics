@@ -7,6 +7,11 @@ const DEFAULT_DATA = {
   barangAnalysis: [],
   supplierScorecard: [],
   barangBaru: [],
+  uploadMetadata: {
+    barangAnalysis: null,
+    supplierScorecard: null,
+    barangBaru: null,
+  },
   uploadedAt: null,
 }
 
@@ -15,16 +20,28 @@ export function DataProvider({ children }) {
     return loadStorage('analytics_data', DEFAULT_DATA)
   })
 
-  function setModuleData(moduleName, rows) {
+  function setModuleData(moduleName, rows, metadata = {}) {
+    const now = new Date().toISOString()
+
     const updatedData = {
-      ...analyticsData,
-      [moduleName]: rows,
-      uploadedAt: new Date().toISOString(),
+        ...analyticsData,
+        [moduleName]: rows,
+        uploadMetadata: {
+        ...(analyticsData.uploadMetadata || {}),
+        [moduleName]: {
+            filename: metadata.filename || '',
+            fileSize: metadata.fileSize || 0,
+            rowCount: rows.length,
+            uploadDate: now,
+            period: metadata.period || '',
+        },
+        },
+        uploadedAt: now,
     }
 
     setAnalyticsData(updatedData)
     saveStorage('analytics_data', updatedData)
-  }
+    }
 
   function clearModuleData(moduleName) {
     const updatedData = {

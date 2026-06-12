@@ -1,5 +1,11 @@
 import { useRef, useState } from 'react'
-import { FileSpreadsheet, UploadCloud, Trash2, CheckCircle, AlertCircle } from 'lucide-react'
+import {
+  AlertCircle,
+  CheckCircle,
+  FileSpreadsheet,
+  Trash2,
+  UploadCloud,
+} from 'lucide-react'
 import { useData } from '../context/DataContext'
 import { getColumnsFromRows, parseUploadFile } from '../utils/csvParser'
 
@@ -21,6 +27,32 @@ const MODULE_OPTIONS = [
   },
 ]
 
+function formatFileSize(bytes) {
+  if (!bytes) return '-'
+
+  const sizeMb = bytes / 1024 / 1024
+
+  return `${sizeMb.toFixed(2)} MB`
+}
+
+function formatDateTime(value) {
+  if (!value) return '-'
+
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return '-'
+  }
+
+  return new Intl.DateTimeFormat('id-ID', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date)
+}
+
 function Upload() {
   const fileInputRef = useRef(null)
 
@@ -32,6 +64,7 @@ function Upload() {
   } = useData()
 
   const [selectedModule, setSelectedModule] = useState('barangAnalysis')
+  const [period, setPeriod] = useState('')
   const [selectedFile, setSelectedFile] = useState(null)
   const [previewRows, setPreviewRows] = useState([])
   const [columns, setColumns] = useState([])
@@ -39,7 +72,9 @@ function Upload() {
   const [message, setMessage] = useState(null)
   const [isDragOver, setIsDragOver] = useState(false)
 
-  const selectedModuleInfo = MODULE_OPTIONS.find((item) => item.value === selectedModule)
+  const selectedModuleInfo = MODULE_OPTIONS.find((item) => {
+    return item.value === selectedModule
+  })
 
   async function handleFile(file) {
     setMessage(null)
@@ -65,7 +100,9 @@ function Upload() {
 
       setMessage({
         type: 'success',
-        text: `File berhasil dibaca. Total ${rows.length.toLocaleString('id-ID')} baris dan ${detectedColumns.length} kolom.`,
+        text: `File berhasil dibaca. Total ${rows.length.toLocaleString(
+          'id-ID',
+        )} baris dan ${detectedColumns.length} kolom.`,
       })
     } catch (error) {
       setMessage({
@@ -108,7 +145,11 @@ function Upload() {
       return
     }
 
-    setModuleData(selectedModule, previewRows)
+    setModuleData(selectedModule, previewRows, {
+      filename: selectedFile?.name,
+      fileSize: selectedFile?.size,
+      period,
+    })
 
     setMessage({
       type: 'success',
@@ -127,8 +168,17 @@ function Upload() {
     }
   }
 
+  function handleModuleChange(event) {
+    setSelectedModule(event.target.value)
+    handleResetFile()
+  }
+
   function getModuleRowCount(moduleName) {
     return analyticsData?.[moduleName]?.length || 0
+  }
+
+  function getModuleMetadata(moduleName) {
+    return analyticsData?.uploadMetadata?.[moduleName] || null
   }
 
   return (
@@ -150,10 +200,7 @@ function Upload() {
 
               <select
                 value={selectedModule}
-                onChange={(event) => {
-                  setSelectedModule(event.target.value)
-                  handleResetFile()
-                }}
+                onChange={handleModuleChange}
                 className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 {MODULE_OPTIONS.map((item) => (
@@ -165,6 +212,24 @@ function Upload() {
 
               <p className="text-sm text-gray-500 mt-2">
                 {selectedModuleInfo?.description}
+              </p>
+            </div>
+
+            <div className="mb-5">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Periode Data
+              </label>
+
+              <input
+                type="text"
+                value={period}
+                onChange={(event) => setPeriod(event.target.value)}
+                placeholder="Contoh: Juni 2026 Week 2, 2026-Q1, JAN Week 1"
+                className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+
+              <p className="text-sm text-gray-500 mt-2">
+                Opsional. Dipakai untuk menandai periode file yang diupload.
               </p>
             </div>
 
@@ -201,7 +266,7 @@ function Upload() {
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="btn-primary"
+                className="btn-primary disabled:opacity-60 disabled:cursor-not-allowed"
                 disabled={isParsing}
               >
                 {isParsing ? 'Membaca File...' : 'Pilih File'}
@@ -235,9 +300,16 @@ function Upload() {
                     <div className="font-semibold text-gray-800">
                       {selectedFile.name}
                     </div>
+
                     <div className="text-sm text-gray-500">
-                      {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                      {formatFileSize(selectedFile.size)}
                     </div>
+
+                    {period && (
+                      <div className="text-sm text-gray-500">
+                        Periode: {period}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -268,6 +340,7 @@ function Upload() {
                 <h2 className="text-lg font-semibold text-gray-800">
                   Preview Data
                 </h2>
+
                 <p className="text-sm text-gray-500">
                   Menampilkan maksimal 10 baris pertama dari file upload.
                 </p>
@@ -275,7 +348,8 @@ function Upload() {
 
               {previewRows.length > 0 && (
                 <div className="text-sm text-gray-600">
-                  {previewRows.length.toLocaleString('id-ID')} baris · {columns.length} kolom
+                  {previewRows.length.toLocaleString('id-ID')} baris ·{' '}
+                  {columns.length} kolom
                 </div>
               )}
             </div>
@@ -327,30 +401,64 @@ function Upload() {
             </h2>
 
             <div className="space-y-3">
-              {MODULE_OPTIONS.map((item) => (
-                <div
-                  key={item.value}
-                  className="flex items-center justify-between border border-gray-200 rounded-lg p-3"
-                >
-                  <div>
-                    <div className="font-medium text-gray-800">
-                      {item.label}
-                    </div>
-                    <div className="text-sm text-gray-500">
-                      {getModuleRowCount(item.value).toLocaleString('id-ID')} baris
-                    </div>
-                  </div>
+              {MODULE_OPTIONS.map((item) => {
+                const metadata = getModuleMetadata(item.value)
 
-                  <button
-                    type="button"
-                    onClick={() => clearModuleData(item.value)}
-                    className="text-red-600 hover:text-red-800"
-                    title="Hapus data module ini"
+                return (
+                  <div
+                    key={item.value}
+                    className="border border-gray-200 rounded-lg p-3"
                   >
-                    <Trash2 size={18} />
-                  </button>
-                </div>
-              ))}
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="font-medium text-gray-800">
+                          {item.label}
+                        </div>
+
+                        <div className="text-sm text-gray-500">
+                          {getModuleRowCount(item.value).toLocaleString(
+                            'id-ID',
+                          )}{' '}
+                          baris
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => clearModuleData(item.value)}
+                        className="text-red-600 hover:text-red-800"
+                        title="Hapus data module ini"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
+
+                    {metadata && (
+                      <div className="mt-3 rounded-lg bg-gray-50 border border-gray-100 p-3 text-xs text-gray-600 space-y-1">
+                        <div>
+                          <span className="font-semibold">File:</span>{' '}
+                          {metadata.filename || '-'}
+                        </div>
+
+                        <div>
+                          <span className="font-semibold">Periode:</span>{' '}
+                          {metadata.period || '-'}
+                        </div>
+
+                        <div>
+                          <span className="font-semibold">Ukuran:</span>{' '}
+                          {formatFileSize(metadata.fileSize)}
+                        </div>
+
+                        <div>
+                          <span className="font-semibold">Upload:</span>{' '}
+                          {formatDateTime(metadata.uploadDate)}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
 
             <button
@@ -373,15 +481,17 @@ function Upload() {
               </p>
 
               <p>
-                Untuk barcode atau kode barang, format sebaiknya text agar angka nol depan tidak hilang.
+                Untuk barcode atau kode barang, format sebaiknya text agar angka
+                nol depan tidak hilang.
               </p>
 
               <p>
-                Upload file sesuai module tujuan supaya data analytics tidak tertukar.
+                Upload file sesuai module tujuan supaya data analytics tidak
+                tertukar.
               </p>
 
               <p>
-                Data disimpan di browser menggunakan localStorage.
+                Data dan metadata disimpan di browser menggunakan localStorage.
               </p>
             </div>
           </div>
